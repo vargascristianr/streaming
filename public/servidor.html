@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<title>Servidor de Streaming</title>
+</head>
+<body>
+	<h1>Servidor de Streaming</h1>
+	<p>
+		Esta página transmite el streaming de la cámara web
+	</p>
+	<video id="video"></video> <!-- conexion con camara web -->
+	<canvas id="canvas" width="1280" height="720"></canvas> <!-- transmision de suscesion de imagenes -->
+	<script src="/socket.io/socket.io.js"></script> <!-- se llama a socket.io -->
+	<script>
+		(function (d, w, n, io){ //objetos document, windows, navigator,io
+			'use strict'
+
+			var io = io(),
+				startCamera = false, //permite saber si la camara esta encendida
+				video = d.querySelector('#video'), //con la etiqueta video se toma una captura de la imagen
+				canvas = d.querySelector('#canvas'), //la imagen se trabaja en el canvas
+				context = canvas.getContext('2d')// contexto 2d para cnavas
+
+			//acceso a la camara web	
+			n.streaming = (
+				n.getUserMedia || //navegador chrome
+				n.webkitGetUserMedia || //navegadores motor webkit
+				n.mozGetUserMedia || //navegadores mozilla
+				n.msGetUserMedia //Navegadores IE
+			)
+
+			n.streaming({
+				video : true, //se activa el video
+				audio : false // se desactiva o activa el audio
+			}, function (stream){ // funcion que activa la camara
+				startCamera = true
+                //video.src = w.URL.createObjectURL(stream)
+                video.srcObject = stream //transmision de la camara
+			}, function (err){ //mensaje de error 
+				alert('error al acceder a la camara web: ' + err)
+			})
+
+
+			//funcion que realiza la animacion del video
+			w.playVideo = (function (cb){
+				return w.requestAnimationFrame || // funcion que realiza la animacion
+					w.webkitRequestAnimationFrame ||
+					w.mozRequestAnimationFrame ||
+					w.msRequestAnimationFrame ||
+					function (cb) {
+						w.setTimeout(cb, 1000/100) //funcion de tiempo para navegadores que no soporten requies animation frame
+					}
+			})()
+
+
+			//la funcion guarda el stream en forma de imagenes
+			function streamVideo(context, canvas, video)
+			{
+				var outputStream = canvas.toDataURL('image/jpeg', .2)//se crean las imagenes en jpeg
+				context.drawImage(video, 0, 0) //dibuja la imagen desde la captura del video
+
+				if(startCamera) //si la camara esta encendida se emite el socket para generar la salida de video
+					io.emit('streaming', outputStream)
+
+				playVideo(function (){ //esta funcion permite que se emita la imagen en tiempo real
+					streamVideo(context, canvas, video)
+				})
+			}
+
+			//evento que se ejecuta cuando carggue el navegador y ejecuta la funcon load
+			w.addEventListener('load', function (){
+				video.autoplay = true //se activa la propiedad autoplay al video
+				video.style.display = 'none' //ocultamos el video, ya que solo se va a ver el canvas
+				streamVideo(context, canvas, video) //la funcion streamvideo genera el stream de video, recibe el contexto, el canvas y el video
+			})
+		})(document, window, navigator, io)
+	</script>
+</body>
+</html>
